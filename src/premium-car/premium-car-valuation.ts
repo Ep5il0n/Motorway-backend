@@ -4,6 +4,7 @@ import { promisify } from 'util';
 
 import { VehicleValuation } from '../models/vehicle-valuation';
 import { PremiumCarResponse } from './types/premium-car-response';
+import { providerConfig } from '../env';
 
 const parseXml = promisify(parseString);
 
@@ -11,8 +12,7 @@ export async function fetchValuationFromPremiumCarValuation(
   vrm: string,
   mileage: number,
 ): Promise<VehicleValuation> {
-  axios.defaults.baseURL =
-    'https://run.mocky.io/v3/67abe639-2efa-4283-ad0e-61b696c6949b';
+  axios.defaults.baseURL = providerConfig.PREMIUM_CAR_API_URL;
   
   const response = await axios.get<string>(
     `valueCar?vrm=${vrm}`,

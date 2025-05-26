@@ -3,6 +3,7 @@ import { ProviderLogs } from '@app/models/provider-logs';
 import { fetchValuationFromSuperCarValuation } from '@app/super-car/super-car-valuation';
 import { fetchValuationFromPremiumCarValuation } from '@app/premium-car/premium-car-valuation';
 import { Repository } from 'typeorm';
+import { failoverConfig, providerConfig } from '@app/env';
 
 export enum ValuationProvider {
   SUPER_CAR = 'SuperCar Valuations',
@@ -17,9 +18,9 @@ interface ProviderStats {
 
 class ValuationFailoverService {
   private providerStats: Map<ValuationProvider, ProviderStats> = new Map();
-  private readonly FAILURE_THRESHOLD = 0.5; // 50%
-  private readonly REVERT_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
-  private readonly MIN_REQUESTS_FOR_THRESHOLD = 10; // Need at least 10 requests to calculate meaningful failure rate
+  private readonly FAILURE_THRESHOLD = failoverConfig.FAILURE_THRESHOLD;
+  private readonly REVERT_TIMEOUT_MS = failoverConfig.REVERT_TIMEOUT_MS;
+  private readonly MIN_REQUESTS_FOR_THRESHOLD = failoverConfig.MIN_REQUESTS_FOR_THRESHOLD;
   private logRepository?: Repository<ProviderLogs>;
   
   constructor(logRepository?: Repository<ProviderLogs>) {
@@ -134,9 +135,9 @@ class ValuationFailoverService {
   private getProviderUrl(provider: ValuationProvider, vrm: string, mileage: number): string {
     switch (provider) {
       case ValuationProvider.SUPER_CAR:
-        return `https://run.mocky.io/v3/67abe639-2efa-4283-ad0e-61b696c6949b/valuations/${vrm}?mileage=${mileage}`;
+        return `${providerConfig.SUPER_CAR_API_URL}/valuations/${vrm}?mileage=${mileage}`;
       case ValuationProvider.PREMIUM_CAR:
-        return `https://run.mocky.io/v3/67abe639-2efa-4283-ad0e-61b696c6949b/valueCar?vrm=${vrm}`;
+        return `${providerConfig.PREMIUM_CAR_API_URL}/valueCar?vrm=${vrm}`;
       default:
         return 'unknown';
     }
