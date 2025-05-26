@@ -186,7 +186,3 @@ Since it's a popular API with a high volume of requests, a kafka cluster is most
 Kafka is high-throughout and fault-tolerant so it'll take a substantial responsiblity from the start. Also it is capable of
 real time processing. I will also keep in mind that we'll already be having kafka cluster (or some event streaming tool) in use so it'll be just about creating new topics and maitaning a new service. Have a distributed cache set up
 to store aggregated statistics and we're good to go. This will be a very robust solution.
-
-Other notes:
-I would use a configuration management service like consul for dynamic configuration management instead of having the 
-configs in code.
