@@ -1,9 +1,16 @@
 import { FastifyInstance } from 'fastify';
 import { VehicleValuationRequest } from './types/vehicle-valuation-request';
-import { fetchValuationFromSuperCarValuation } from '@app/super-car/super-car-valuation';
 import { VehicleValuation } from '@app/models/vehicle-valuation';
+import { ProviderLogs } from '@app/models/provider-logs';
+import { valuationService } from '@app/services/valuation-service';
 
 export function valuationRoutes(fastify: FastifyInstance) {
+  // Initialize the valuation service with the log repository after ORM is ready
+  fastify.addHook('onReady', async () => {
+    const logRepository = fastify.orm.getRepository(ProviderLogs);
+    valuationService.setLogRepository(logRepository);
+  });
+
   fastify.get<{
     Params: {
       vrm: string;
@@ -57,17 +64,42 @@ export function valuationRoutes(fastify: FastifyInstance) {
         });
     }
 
-    const valuation = await fetchValuationFromSuperCarValuation(vrm, mileage);
+    // Check if valuation already exists to avoid unnecessary API calls
+    const existingValuation = await valuationRepository.findOneBy({ vrm });
+    if (existingValuation) {
+      fastify.log.info('Returning existing valuation: ', existingValuation);
+      return existingValuation;
+    }
 
-    // Save to DB.
-    await valuationRepository.insert(valuation).catch((err) => {
-      if (err.code !== 'SQLITE_CONSTRAINT') {
-        throw err;
+    try {
+      const valuation = await valuationService.getValuation(vrm, mileage);
+
+      // Save to DB.
+      await valuationRepository.insert(valuation).catch((err) => {
+        if (err.code !== 'SQLITE_CONSTRAINT') {
+          throw err;
+        }
+      });
+
+      fastify.log.info('Valuation created: ', valuation);
+      return valuation;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'SERVICE_UNAVAILABLE') {
+        return reply
+          .code(503)
+          .send({
+            message: 'Valuation service temporarily unavailable',
+            statusCode: 503,
+          });
       }
-    });
-
-    fastify.log.info('Valuation created: ', valuation);
-
-    return valuation;
+      
+      // For other errors, maintain existing behavior
+      return reply
+        .code(500)
+        .send({
+          message: 'Internal server error',
+          statusCode: 500,
+        });
+    }
   });
 }

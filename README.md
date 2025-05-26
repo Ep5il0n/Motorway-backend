@@ -119,4 +119,74 @@ The URI for this test stub in Mocky is https://run.mocky.io/v3/0dfda26a-3a5a-43e
 
 
 # Candidate Notes
-Here is a place for you to put any notes regarding the changes you made and the reasoning and what further changes you wish to suggest.
+
+Changes made in this project:
+1. Added new tests and updated existing tests to return mock objects instead of calling actual api
+2. created module premium-car, used a new mocky url and implemented xml parsing
+3. created a generic load balancer class ValuationFailoverService which will take care of routing to the appropriate provider based on failure threshold, revert timeout, minimum request for threshold
+4. Implemented ProviderLogs table to help with auditing 
+5. Check if valuation already exists in DB to avoid unnecessary API calls
+6. Added test to return 503 when both service fails
+
+How would I do things differently in a multi node cluster 
+
+Currently running this in multi node will have below issues
+1. Provider records stored in each node's memory 
+2. Each node makes independent failover decisions 
+3. Multiple nodes could simultaneously trigger failover
+
+So basically we need co-ordination between all nodes
+
+I would suggest three solutions 
+1. Use a centralized metrics aggregator 
+    - Use a centralized metrics system like Prometheus collect and aggregate success/failure rates from all nodes.
+    - Each node would push metrics (e.g uccess/failure counts) to the central system periodically.
+    - The central system would calculate the overall success rate across the cluster
+    - Easy to implement
+
+2. Use a distributed database
+    - Use a distributed database like Redis (cluster) to store success/failure counters.
+    - Each node would increment counters in the shared database for every request.
+    - This will scale well with the number of nodes
+    - The database would maintain consistency across nodes.
+    - Scales horizontally with the cluster.
+
+
+ 3. Event streaming
+ - Use a streaming platform like Apache Kafka to track request outcomes
+ - Each node would publish success/failure events to a kafka topics
+ - A consumer service would process these events in real-time to calculate success rate
+ - Kafka is fault-tolerant and highly scalable
+
+
+ Issues with solution 1:
+  - Single point of failure
+  - Metrics aggegation typically happens at intervals so delay can result in outdated data
+
+Iussues with solution 2:
+   - Consistent atomic operations across a cluster comes with it's shortcoming like latency 
+   - network communications between nodes can delay
+   - if strong consistency is required it may reduce availability 
+   - High frequency writes can lead to resource contention 
+   - Managing amdn maintaining a dsitributed database is more complex
+
+Issues with solution 3:
+   - Consumer service is a single point of failure and we'll need to scale with multiple nodes to make it
+   reliable
+   - Multiple instances of the consumer service process events and calculate aggregated statistics
+   - Aggregated data can be written to a distributed cache 
+   - Added complexity with maintaining kafka cluster, cache cluster and a separate servuce with multi node cosnumer instances 
+
+
+Final solution:
+I would pick solution 3 Event streaming
+
+Reasoning:
+Since it's a popular API with a high volume of requests, a kafka cluster is most well suited to handle that.
+Kafka is high-throughout and fault-tolerant so it'll take a substantial responsiblity from the start. Also it is capable of
+real time processing. I will also keep in mind that we'll already be having kafka cluster (or some event streaming tool) in use so it'll be just about creating new topics and maitaning a new service. Have a distributed cache set up
+to store aggregated statistics and we're good to go. This will be a very robust solution.
+
+Other notes:
+I would use a configuration management service like consul for dynamic configuration management instead of having the 
+configs in code.
